@@ -54,35 +54,39 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-# Charger les données labellisées
+#  Charger les données labellisées
 df = pd.read_csv("avis_labellises.csv")
 
-X = df["titre_nettoye"]
+#  Variables explicative (X) et cible (y)
+X = df["texte_nettoye"]  # <-- on utilise maintenant le texte nettoyé
 y = df["label"]
 
-# Séparer les données
+#  Séparer les données en train/test
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# TF-IDF
+#  TF-IDF vectorization
 vectorizer = TfidfVectorizer(max_features=5000)
 X_train_tfidf = vectorizer.fit_transform(X_train)
 X_test_tfidf = vectorizer.transform(X_test)
 
-# Modèles à tester
+#  Définir les modèles à tester
 models = {
     "Logistic Regression": LogisticRegression(max_iter=1000),
     "Random Forest": RandomForestClassifier(n_estimators=100, random_state=42),
     "XGBoost": XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42)
 }
 
+#  Entraînement & Évaluation
 for name, model in models.items():
     print(f"\n--- Modèle : {name} ---")
     model.fit(X_train_tfidf, y_train)
     y_pred = model.predict(X_test_tfidf)
+
     acc = accuracy_score(y_test, y_pred)
     print(f"Accuracy: {acc:.2f}")
     print("Classification Report:")
     print(classification_report(y_test, y_pred))
+
     cm = confusion_matrix(y_test, y_pred)
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
                 xticklabels=["Vrai", "Faux"], yticklabels=["Vrai", "Faux"])
@@ -90,3 +94,4 @@ for name, model in models.items():
     plt.ylabel("Réel")
     plt.title(f"Matrice de confusion - {name}")
     plt.show()
+

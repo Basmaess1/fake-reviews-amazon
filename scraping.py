@@ -1,68 +1,3 @@
-# import requests
-# from bs4 import BeautifulSoup
-# import pandas as pd
-
-# HEADERS = {
-#     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
-#     "Accept-Language": "en-US,en;q=0.5",
-# }
-
-# URL = 'https://www.amazon.com/s?k=playstation+5'
-
-# response = requests.get(URL, headers=HEADERS)
-# soup = BeautifulSoup(response.content, 'html.parser')
-
-# # Listes vides
-# titles, prices, ratings, reviews = [], [], [], []
-
-# # Tous les blocs produits
-# for product in soup.select("div.s-main-slot div.s-result-item"):
-
-#     # Titre
-#     title = product.h2.get_text(strip=True) if product.h2 else ""
-#     titles.append(title)
-
-#     # Prix
-#     price_whole = product.select_one("span.a-price > span.a-offscreen")
-#     prices.append(price_whole.get_text(strip=True) if price_whole else "")
-
-#     # Note
-#     rating = product.select_one("span.a-icon-alt")
-#     ratings.append(rating.get_text(strip=True) if rating else "")
-
-#     # Nombre d’avis
-#     review = product.select_one("span.a-size-base")
-#     reviews.append(review.get_text(strip=True) if review else "")
-
-# # Créer le DataFrame
-# df = pd.DataFrame({
-#     "titre": titles,
-#     "prix": prices,
-#     "note": ratings,
-#     "nb_avis": reviews
-# })
-
-# # Supprimer les lignes sans titre
-# df = df[df["titre"] != ""]
-
-# # Enregistrer
-# df.to_csv("amazon_resultats.csv", index=False)
-# print(df.head())
-
-# import pandas as pd
-# import numpy as np
-
-# df = pd.read_csv("avis_nettoyes.csv")
-
-# # Générer aléatoirement 0 ou 1 (à remplacer plus tard par tes vrais labels)
-# df["label"] = np.random.randint(0, 2, size=len(df))
-
-# df.to_csv("avis_labellises.csv", index=False)
-# print(df[["titre_nettoye", "label"]].head())
-
-
-
-
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
@@ -73,53 +8,81 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.5",
 }
 
-# Nombre de pages que tu veux scraper
-NB_PAGES = 10  # ⇦ tu peux augmenter ce nombre (max 20 recommandé sans proxy)
-
-# Recherche sur Amazon
+NB_PAGES = 10  # Commence avec 2 ou 3 pour tester (tu peux l’augmenter ensuite)
 BASE_URL = "https://www.amazon.com/s?k=wireless+headphones&i=electronics&page="
 
-
-# Listes vides pour stocker les résultats
-titles, prices, ratings, reviews = [], [], [], []
+titles, prices, ratings, reviews, review_texts = [], [], [], [], []
 
 for page in range(1, NB_PAGES + 1):
-    print(f" Scraping page {page}...")
+    print(f"\n Scraping page {page}...")
     url = BASE_URL + str(page)
     response = requests.get(url, headers=HEADERS)
     soup = BeautifulSoup(response.content, 'html.parser')
 
-    for product in soup.select("div.s-main-slot div.s-result-item"):
-        # Titre
-        title = product.h2.get_text(strip=True) if product.h2 else ""
-        titles.append(title)
+    product_blocks = soup.select("div.s-main-slot div.s-result-item")
 
-        # Prix
-        price = product.select_one("span.a-price > span.a-offscreen")
-        prices.append(price.get_text(strip=True) if price else "")
+    for product in product_blocks:
+        try:
+            # Titre
+            title = product.h2.get_text(strip=True) if product.h2 else ""
 
-        # Note
-        rating = product.select_one("span.a-icon-alt")
-        ratings.append(rating.get_text(strip=True) if rating else "")
+            # Prix
+            price_tag = product.select_one("span.a-price > span.a-offscreen")
+            price = price_tag.get_text(strip=True) if price_tag else ""
 
-        # Nombre d’avis
-        review = product.select_one("span.a-size-base")
-        reviews.append(review.get_text(strip=True) if review else "")
+            # Note
+            rating_tag = product.select_one("span.a-icon-alt")
+            rating = rating_tag.get_text(strip=True) if rating_tag else ""
 
-    time.sleep(2)  # Pause pour ne pas se faire bloquer
+            # Nombre d’avis
+            review_count_tag = product.select_one("span.a-size-base")
+            review_count = review_count_tag.get_text(strip=True) if review_count_tag else ""
 
-# Créer le DataFrame
+            # Lien vers la page produit
+            link_tag = product.select_one("a.a-link-normal.s-no-outline")
+            if not link_tag:
+                continue
+
+            raw_href = link_tag.get("href")
+            if raw_href.startswith("http"):
+                product_link = raw_href
+            else:
+                product_link = "https://www.amazon.com" + raw_href
+
+            # Scraper la page produit pour récupérer le premier avis
+            product_resp = requests.get(product_link, headers=HEADERS)
+            product_soup = BeautifulSoup(product_resp.content, "html.parser")
+
+            review_text_tag = product_soup.select_one("span[data-hook='review-body']")
+            review_text = review_text_tag.get_text(strip=True) if review_text_tag else ""
+
+            # Sauvegarde des données
+            titles.append(title)
+            prices.append(price)
+            ratings.append(rating)
+            reviews.append(review_count)
+            review_texts.append(review_text)
+
+            print(f" Produit : {title[:50]}... Avis extrait : {len(review_text)} car.")
+
+            time.sleep(1)
+
+        except Exception as e:
+            print(f" Erreur pour un produit : {e}")
+            continue
+
+# Création du DataFrame final
 df = pd.DataFrame({
     "titre": titles,
     "prix": prices,
     "note": ratings,
-    "nb_avis": reviews
+    "nb_avis": reviews,
+    "texte_avis": review_texts
 })
 
-# Nettoyage : supprimer les lignes sans titre
-df = df[df["titre"] != ""]
+# Supprimer les produits sans avis
+df = df[df["texte_avis"] != ""]
 
-# Enregistrer les résultats
-df.to_csv("amazon_resultats.csv", index=False)
-print(f"\n Scraping terminé : {len(df)} produits enregistrés dans 'amazon_resultats.csv'")
-print(df.head())
+# Sauvegarde
+df.to_csv("amazon_avis_textes.csv", index=False)
+print(f"\n Scraping terminé : {len(df)} produits enregistrés avec texte d’avis.")

@@ -11,40 +11,36 @@ import nltk
 nltk.download('stopwords')
 stop_words = set(stopwords.words('english'))
 
-# Charger les données issues du scraping
-df = pd.read_csv("amazon_resultats.csv")
+#  1. Charger les données issues du scraping
+df = pd.read_csv("amazon_avis_textes.csv")
 
-#  1. Nettoyage des données brutes
+#  2. Nettoyage basique
 df = df.drop_duplicates()
-df = df.dropna(subset=["titre"])
+df = df.dropna(subset=["texte_avis"])
 
-# Supprimer les faux blocs ou pubs
-filtres = ["Results", "highlighted", "Check", "Pick", "sponsored", "buying options"]
-pattern_filtre = '|'.join(filtres)
-df = df[~df["titre"].str.contains(pattern_filtre, case=False, na=False)]
+# Supprimer les avis trop courts (moins de 10 caractères par ex.)
+df = df[df["texte_avis"].str.len() > 10]
 
-# Supprimer les titres trop courts
-df = df[df["titre"].str.len() > 10]
-
-#  2. Nettoyage du texte
+#  3. Fonction de nettoyage de texte
 def clean_text(text):
     text = str(text)
     text = unidecode.unidecode(text)                         # enlever les accents
     text = text.lower()                                      # tout en minuscules
     text = re.sub(r'\d+', '', text)                          # supprimer les chiffres
-    text = text.translate(str.maketrans('', '', string.punctuation))  # supprimer ponctuation
+    text = text.translate(str.maketrans('', '', string.punctuation))  # supprimer la ponctuation
     words = text.split()
-    words = [w for w in words if w not in stop_words]        # supprimer stopwords
+    words = [w for w in words if w not in stop_words]        # enlever les stopwords
     return " ".join(words)
 
-df["titre_nettoye"] = df["titre"].apply(clean_text)
+#  4. Nettoyer les avis
+df["texte_nettoye"] = df["texte_avis"].apply(clean_text)
 
-# 3. Générer des labels aléatoires (juste pour test)
+#  5. Générer des labels aléatoires (0 = vrai, 1 = faux) — temporairement
 df["label"] = np.random.randint(0, 2, size=len(df))
 
-#  4. Sauvegarder
+# 6. Sauvegarder les résultats
 df.to_csv("avis_labellises.csv", index=False)
 
-#  5. Affichage de contrôle
-print(df[["titre", "titre_nettoye", "label"]].head())
+# 7. Affichage pour contrôle
+print(df[["texte_avis", "texte_nettoye", "label"]].head())
 print(f"\n Nettoyage et labellisation terminés : {len(df)} lignes enregistrées dans 'avis_labellises.csv'")
